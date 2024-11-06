@@ -1,0 +1,55 @@
+<!DOCTYPE html><meta charset="utf-8"><title>Google App EngineでGmailからメールを送信する | egashira.jp</title><meta name="description" content="Google App Engineで、Gmailを使ってメールを送信する方法を紹介します。"><meta property="og:title" content="Google App EngineでGmailからメールを送信する | egashira.jp"><meta property="og:description" content="Google App Engineで、Gmailを使ってメールを送信する方法を紹介します。"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>Google App EngineでGmailからメールを送信する</h1><p class="updated">2020-03-03</p><p class="abst">Google App Engineで、Gmailを使ってメールを送信する方法を紹介します。</p><p>Google App Engineの第二世代では、今まで使用できていたメールAPIが使用できなくなり、サードパーティのメールサービスを使用しないといけなくなりました。<br>今までコンタクトフォームから問い合わせがあったときに、その内容を知らせる程度にしか使用していなかったので、わざわざサードパーティのサービスを使用するほどでもないため、Gmailを使用してみることにしました。</p><p>ウェブアプリからのGmailメール送信に関して調べてみると、Oauth2を使用した認証でGmail APIへのアクセス権を得てメールを送信する方法が多く紹介されています。しかしこの方法は本来、サイトにアクセスした人のGmailアカウントの権限を取得するための方法ですので、意図していたのとは異なります。</p><p>Googleのアプリパスワードの認証を利用すると、もっと簡単な方法でGmailからメール送信することができます。この方法で認証されるのは自分のGoogleアカウントのみですが、私の目的には合致しているので、これでやっていきたいと思います。Googleのアプリパスワードは、自分のGoogleアカウント管理画面から、セキュリティタブを開いて、以下の画像の「アプリパスワード」から設定できます。</p><img class="photo" src="/images/google-app-pass.png" width="500" height="416"><p>このアプリパスワードを使用して、以下のようなコードでメールが送信可能です。</p><pre><code data-lang="go"><span class="keyword">package</span> main
+
+<span class="keyword">import</span> (
+   <span class="string">"fmt"</span>
+   <span class="string">"log"</span>
+   <span class="string">"net/http"</span>
+   <span class="string">"net/smtp"</span>
+   <span class="string">"os"</span>
+)
+
+<span class="function"><span class="keyword">func</span> <span class="title">main</span><span class="params">()</span></span> {
+   http.HandleFunc(<span class="string">"/mail"</span>, mail)
+   http.HandleFunc(<span class="string">"/"</span>, hello)
+   port := os.Getenv(<span class="string">"PORT"</span>)
+   <span class="keyword">if</span> port == <span class="string">""</span> {
+      port = <span class="string">"8080"</span>
+      log.Printf(<span class="string">"Defaulting to port %s"</span>, port)
+   }
+
+   log.Printf(<span class="string">"Listening on port %s"</span>, port)
+   <span class="keyword">if</span> err := http.ListenAndServe(<span class="string">":"</span>+port, <span class="literal">nil</span>); err != <span class="literal">nil</span> {
+      log.Fatal(err)
+   }
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">hello</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+   fmt.Fprint(w, <span class="string">"Hello!"</span>)
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">mail</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+   <span class="keyword">if</span> r.Method == <span class="string">"POST"</span> {
+      msg := r.FormValue(<span class="string">"msg"</span>)
+      fmt.Fprintf(w, <span class="string">"Message is %s"</span>, msg)
+
+      auth := smtp.PlainAuth(
+         <span class="string">""</span>,
+         <span class="string">"送信元メルアド@gmail.com"</span>,
+         <span class="string">"アプリパスワード"</span>,
+         <span class="string">"smtp.gmail.com"</span>,
+      )
+      err := smtp.SendMail(
+         <span class="string">"smtp.gmail.com:587"</span>,
+         auth,
+         <span class="string">"送信元メルアド@gmail.com"</span>,
+         []<span class="keyword">string</span>{<span class="string">"送信先のメルアド"</span>},
+         []<span class="keyword">byte</span>(fmt.Sprintf(<span class="string">"To:送信先のメルアド\r\nSubject:コンタクトフォームから問合せ\r\n\r\n%s"</span>, msg)),
+      )
+      <span class="keyword">if</span> err != <span class="literal">nil</span> {
+         log.Fatal(err)
+      }
+      <span class="keyword">return</span>
+   }
+   w.Header().Add(<span class="string">"Content-Type"</span>, <span class="string">"text/html; charset=utf-8"</span>)
+   fmt.Fprint(w, <span class="string">`&lt;form method="POST"&gt;&lt;textarea name="msg"&gt;&lt;/textarea&gt;&lt;input type="submit"&gt;&lt;/form&gt;`</span>)
+}</code></pre><tag-button>Golang</tag-button><tag-button>Google App Engine</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>

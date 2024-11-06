@@ -1,0 +1,389 @@
+<!DOCTYPE html><meta charset="utf-8"><title>画像をクライアント側で縮小してプレビューした後にアップロードする | egashira.jp</title><meta name="description" content="iPhoneでひしゃげてしまうバグに対応した、JavaScriptで画像を縮小処理する方法を紹介します。
+	JPEGの回転情報から正しい向きで表示したり、ジャギーを減らすためにエルミートフィルターを使ったスムージングも行います。"><meta property="og:title" content="画像をクライアント側で縮小してプレビューした後にアップロードする | egashira.jp"><meta property="og:description" content="iPhoneでひしゃげてしまうバグに対応した、JavaScriptで画像を縮小処理する方法を紹介します。
+	JPEGの回転情報から正しい向きで表示したり、ジャギーを減らすためにエルミートフィルターを使ったスムージングも行います。"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>画像をクライアント側で縮小してプレビューした後にアップロードする</h1><p class="updated">2015-08-10</p><p style="color:red"><a href="/image-resize-before-upload-updated">改訂版のコード</a>を掲載していますので、そちらを参照してください。</p><p class="abst">iPhoneでひしゃげてしまうバグに対応した、JavaScriptで画像を縮小処理する方法を紹介します。 JPEGの回転情報から正しい向きで表示したり、ジャギーを減らすためにエルミートフィルターを使ったスムージングも行います。</p><p>画像を投稿できるサイトなどでは、写真を"魅せる"ためのサイトでない限りディスプレイ幅以上の解像度のデータは必要なく、アップロードされた画像ファイルをサーバ側で縮小処理したデータのみを保存していることも多いのではないでしょうか？</p><p>iPhoneのOSがバージョン6になってから、ようやくHTMLの&lt;input type="file"&gt;がサポートされ、スマホ界隈でも画像投稿が熱くなってる感じがしますが、スマホのカメラはメガピクセルが当たり前なので、そのままだとファイルサイズが1メガ以上になってしまい、通信帯域を無駄に使ってしまいます。</p><p>HTML5で実用化されたFileReaderを使用すると、&lt;input type="file"&gt;で読み取ったローカルの画像ファイルを&lt;canvas&gt;に縮小表示することが簡単になりましたので、アップロードファイルサイズが小さくなり、サーバ上の縮小処理も必要なくなったのでいいコトだらけです。</p><p>しかし、FileReaderで読み取ったデータをそのままcanvasに貼り付けると、iPhoneでひしゃげてしまう問題があったり、JPEGの画像の向きがおかしくなったりすることがあります。<br>画像の向きはExif情報に格納された画像の回転情報を適切に適用すれば問題ありませんが、Exifを読み取るためには大きなサイズのライブラリに頼ったりする必要がありました。</p><p>今回、VanillaなJavaScriptで他のライブラリを一切使わないでクライアント側で画像を縮小するサンプルを紹介します。</p><p>以前に紹介していたときは、画像の縮小アルゴリズムを考慮していなかったので、ジャギーが目立つ感じでしたが、今回はエルミートフィルターを使って、綺麗に縮小できるようにしました。</p><p>ジャギーが目立たないだけでなく、画像の解像感が減った影響で2割ほどファイルサイズが小さくなっていますので、通信帯域の削減にも貢献しています。</p><h2>デモ</h2><div style="border:1px solid #333"><p><input type="file" id="photo" accept="image/*"><br><input type="button" id="submit" value="アップロード" disabled="disabled"></p><p id="resized"></p><script>document.getElementById("photo").addEventListener("change",function(t){t.target.style.display="none";var q=t.target.files[0];if(q.type.match(/^image\/(png|jpeg|gif)$/)){var z=new Image;t=new FileReader;var F=300,$=300;t.onload=function(t){var W=t.target.result;z.onload=function(){var t,e=z.naturalWidth,a=z.naturalHeight,r=e,c=a;if(W.split(",")[0].match("jpeg")){t=atob(W.split(",")[1]);for(var d,o=0;!(255==t.charCodeAt(o)&218==t.charCodeAt(o+1));){if(255==t.charCodeAt(o)&216==t.charCodeAt(o+1))o+=2;else{var h=o+(256*t.charCodeAt(o+2)+t.charCodeAt(o+3))+2;if(255==t.charCodeAt(o)&225==t.charCodeAt(o+1)){h=(o=77==(t=t.slice(o,h)).charCodeAt(10))?256*t.charCodeAt(18)+t.charCodeAt(19):t.charCodeAt(18)+256*t.charCodeAt(19);for(var n=0;n<h;n++){var i=t.slice(20+12*n,32+12*n);(o&&18==i.charCodeAt(1)||!o&&18==i.charCodeAt(0))&&(d=o?i.charCodeAt(9):i.charCodeAt(8))}break}o=h}if(o>t.length)break}t=d}switch(4<(t=t||1)&&(d=F,F=$,$=d),(F<r||$<c)&&((d=r/F)<=c/$&&(d=c/$),r=Math.floor(z.width/d),c=Math.floor(z.height/d)),(d=(n=document.createElement("canvas")).getContext("2d")).save(),o=r,h=c,4<t?(n.width=h,n.height=o):(n.width=o,n.height=h),n=n.getContext("2d"),t){case 2:n.translate(o,0),n.scale(-1,1);break;case 3:n.translate(o,h),n.rotate(Math.PI);break;case 4:n.translate(0,h),n.scale(1,-1);break;case 5:n.rotate(.5*Math.PI),n.scale(1,-1);break;case 6:n.rotate(.5*Math.PI),n.translate(0,-h);break;case 7:n.rotate(.5*Math.PI),n.translate(o,-h),n.scale(-1,1);break;case 8:n.rotate(-.5*Math.PI),n.translate(-o,0)}(t=1048576<(t=z.naturalWidth)*z.naturalHeight&&((o=document.createElement("canvas")).width=o.height=1,(o=o.getContext("2d")).drawImage(z,1-t,0),0===o.getImageData(0,0,1,1).data[3]))&&(e/=2,a/=2),(t=document.createElement("canvas")).width=t.height=1024,t=t.getContext("2d"),o=a,(h=document.createElement("canvas")).width=1,h.height=o,(h=h.getContext("2d")).drawImage(z,0,0);h=h.getImageData(0,0,1,o).data,n=0;for(var l=i=o;n<l;)0===h[4*(l-1)+3]?i=l:n=l,l=i+n>>1;for(o=l/o,r=Math.ceil(1024*r/e),c=Math.ceil(1024*c/a/(0===o?1:o)),h=o=0;o<a;){for(i=n=0;n<e;){t.clearRect(0,0,1024,1024),t.drawImage(z,-n,-o);var s=t.getImageData(0,0,1024,1024),g=(l=r,c),m=document.createElement("canvas");m.width=l,m.height=g;for(var v=m.getContext("2d"),u=v.createImageData(l,g),f=(s=s.data,u.data),C=1024/l,A=1024/g,I=Math.ceil(C/2),b=Math.ceil(A/2),w=0;w<g;w++)for(var M=0;M<l;M++){for(var p=4*(M+w*l),E=0,k=0,x=0,y=0,D=0,P=0,B=(w+.5)*A,L=Math.floor(w*A);L<(w+1)*A;L++)for(var R=(M+.5)*C,j=(j=Math.abs(B-(L+.5))/b)*j,H=Math.floor(M*C);H<(M+1)*C;H++){var U=Math.abs(R-(H+.5))/I;-1<=(E=Math.sqrt(j+U*U))&&E<=1&&(0<(E=2*E*E*E-3*E*E+1)&&(x+=E*s[U=4*(H+1024*L)],y+=E*s[U+1],D+=E*s[U+2],P+=E*s[U+3],k+=E))}f[p]=x/k,f[p+1]=y/k,f[p+2]=D/k,f[p+3]=P/k}v.putImageData(u,0,0),d.drawImage(m,0,0,r,c,i,h,r,c),n+=1024,i+=r}o+=1024,h+=c}d.restore(),e=d.canvas.toDataURL("image/jpeg",.9),(a=document.createElement("img")).id="preview",a.setAttribute("src",e),a.setAttribute("alt",q.name),a.setAttribute("style","max-width:90%;max-height:90%"),document.getElementById("resized").appendChild(a),document.getElementById("submit").removeAttribute("disabled")},z.src=W},t.readAsDataURL(q)}}),document.getElementById("submit").addEventListener("click",function(t){t.preventDefault(),alert("このデモではアップロードされません。")})</script></div><p>以下のコードは、そのままHTMLのファイルとして保存すれば自分でも動作を確認することができます（アップロードはローカルにおいたままではセキュリティの警告が出て、実行できませんが）。</p><h2>クライアント側のコード</h2><pre><code data-lang="html"><span class="meta">&lt;!DOCTYPE <span class="meta-keyword">html</span>&gt;</span>
+<span class="tag">&lt;<span class="name">html</span> <span class="attr">lang</span>=<span class="string">"ja"</span>&gt;</span>
+<span class="tag">&lt;<span class="name">head</span>&gt;</span>
+<span class="tag">&lt;<span class="name">meta</span> <span class="attr">charset</span>=<span class="string">"utf-8"</span>&gt;</span>
+<span class="tag">&lt;<span class="name">title</span>&gt;</span>画像をアップロードする前にプレビュー、縮小する<span class="tag">&lt;/<span class="name">title</span>&gt;</span>
+<span class="tag">&lt;<span class="name">meta</span> <span class="attr">name</span>=<span class="string">"viewport"</span> <span class="attr">content</span>=<span class="string">"width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no"</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">head</span>&gt;</span>
+<span class="tag">&lt;<span class="name">body</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">h1</span>&gt;</span>Image縮小サンプル<span class="tag">&lt;/<span class="name">h1</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">p</span>&gt;</span>
+      <span class="tag">&lt;<span class="name">input</span> <span class="attr">type</span>=<span class="string">"file"</span> <span class="attr">id</span>=<span class="string">"photo"</span> <span class="attr">accept</span>=<span class="string">"image/*"</span>&gt;</span>
+      <span class="tag">&lt;<span class="name">br</span>&gt;</span><span class="tag">&lt;<span class="name">input</span> <span class="attr">type</span>=<span class="string">"button"</span> <span class="attr">id</span>=<span class="string">"submit"</span> <span class="attr">value</span>=<span class="string">"アップロード"</span> <span class="attr">disabled</span>=<span class="string">"disabled"</span>&gt;</span>
+   <span class="tag">&lt;/<span class="name">p</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">script</span>&gt;</span><span class="javascript">
+         (<span class="function"><span class="keyword">function</span> (<span class="params"></span>) </span>{
+            <span class="string">'use strict'</span>;
+
+            <span class="comment">// Google App Engineのように動的にアップロードURLが変わる場合じゃなければ</span>
+            <span class="comment">// uploadurlにはStaticな値を設定してOK</span>
+            <span class="keyword">var</span> uploadurl;
+
+            <span class="comment">// 縮小する画像のサイズ</span>
+            <span class="keyword">var</span> maxWidth = <span class="number">300</span>;
+            <span class="keyword">var</span> maxHeight = <span class="number">300</span>;
+
+            <span class="comment">// Google App EngineではBlobのアップロードURLが動的に変わるので、</span>
+            <span class="comment">// それを事前に取得してuploadurlに値設定</span>
+            <span class="keyword">var</span> xhr = <span class="keyword">new</span> XMLHttpRequest();
+            xhr.open(<span class="string">'GET'</span>, <span class="string">'/upload'</span>);
+            xhr.setRequestHeader(<span class="string">'X-Requested-With'</span>, <span class="string">'XMLHttpRequest'</span>);
+            xhr.send();
+            xhr.onload = <span class="function"><span class="keyword">function</span> (<span class="params"></span>) </span>{
+               <span class="keyword">if</span> (xhr.status &gt;= <span class="number">200</span> &amp;&amp; xhr.status &lt; <span class="number">300</span>) {
+                  uploadurl = xhr.responseText;
+               }
+            }
+
+            <span class="built_in">document</span>.getElementById(<span class="string">'photo'</span>).addEventListener(<span class="string">'change'</span>, resize);
+            <span class="built_in">document</span>.getElementById(<span class="string">'submit'</span>).addEventListener(<span class="string">'click'</span>, upload);
+
+            <span class="function"><span class="keyword">function</span> <span class="title">upload</span>(<span class="params">e</span>) </span>{
+               e.preventDefault();
+               <span class="keyword">var</span> dataurl = <span class="built_in">document</span>.getElementById(<span class="string">'preview'</span>).src;
+               <span class="keyword">var</span> filename = <span class="built_in">document</span>.getElementById(<span class="string">'preview'</span>).getAttribute(<span class="string">'alt'</span>);
+               <span class="keyword">var</span> blob = dataURLtoBlob(dataurl);
+               <span class="keyword">var</span> fd = <span class="keyword">new</span> FormData();
+               fd.append(<span class="string">'photo'</span>, blob, filename);
+               <span class="comment">// ajax post</span>
+               <span class="keyword">var</span> xhr = <span class="keyword">new</span> XMLHttpRequest();
+
+               xhr.open(<span class="string">'POST'</span>, uploadurl);
+               xhr.setRequestHeader(<span class="string">'X-Requested-With'</span>, <span class="string">'XMLHttpRequest'</span>);
+               xhr.send(fd);
+               xhr.onload = <span class="function"><span class="keyword">function</span> (<span class="params"></span>) </span>{
+                  alert(xhr.responseText);
+               }
+            }
+
+            <span class="function"><span class="keyword">function</span> <span class="title">resize</span>(<span class="params">e</span>) </span>{
+               e.target.style.display = <span class="string">'none'</span>;
+               <span class="keyword">var</span> file = e.target.files[<span class="number">0</span>];
+
+               <span class="keyword">if</span> (!file.type.match(<span class="regexp">/^image\/(png|jpeg|gif)$/</span>)) <span class="keyword">return</span>;
+               <span class="keyword">var</span> img = <span class="keyword">new</span> Image();
+               <span class="keyword">var</span> reader = <span class="keyword">new</span> FileReader();
+
+               reader.onload = <span class="function"><span class="keyword">function</span> (<span class="params">e</span>) </span>{
+                  <span class="keyword">var</span> data = e.target.result;
+
+                  img.onload = <span class="function"><span class="keyword">function</span> (<span class="params"></span>) </span>{
+
+                     <span class="keyword">var</span> iw = img.naturalWidth, ih = img.naturalHeight;
+                     <span class="keyword">var</span> width = iw, height = ih;
+
+                     <span class="keyword">var</span> orientation;
+
+                     <span class="comment">// JPEGの場合には、EXIFからOrientation（回転）情報を取得</span>
+                     <span class="keyword">if</span> (data.split(<span class="string">','</span>)[<span class="number">0</span>].match(<span class="string">'jpeg'</span>)) {
+                        orientation = getOrientation(data);
+                     }
+                     <span class="comment">// JPEG以外や、JPEGでもEXIFが無い場合などには、標準の値に設定</span>
+                     orientation = orientation || <span class="number">1</span>;
+
+                     <span class="comment">// ９０度回転など、縦横が入れ替わる場合には事前に最大幅、高さを入れ替えておく</span>
+                     <span class="keyword">if</span> (orientation &gt; <span class="number">4</span>) {
+                        <span class="keyword">var</span> tmpMaxWidth = maxWidth;
+                        maxWidth = maxHeight;
+                        maxHeight = tmpMaxWidth;
+                     }
+
+                     <span class="keyword">if</span> (width &gt; maxWidth || height &gt; maxHeight) {
+                        <span class="keyword">var</span> ratio = width / maxWidth;
+                        <span class="keyword">if</span> (ratio &lt;= height / maxHeight) {
+                           ratio = height / maxHeight;
+                        }
+                        width = <span class="built_in">Math</span>.floor(img.width / ratio);
+                        height = <span class="built_in">Math</span>.floor(img.height / ratio);
+                     }
+
+
+                     <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+                     <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+                     ctx.save();
+
+                     <span class="comment">// EXIFのOrientation情報からCanvasを回転させておく</span>
+                     transformCoordinate(canvas, width, height, orientation);
+
+                     <span class="comment">// iPhoneのサブサンプリング問題の回避</span>
+                     <span class="comment">// see http://d.hatena.ne.jp/shinichitomita/20120927/1348726674</span>
+                     <span class="keyword">var</span> subsampled = detectSubsampling(img);
+                     <span class="keyword">if</span> (subsampled) {
+                        iw /= <span class="number">2</span>;
+                        ih /= <span class="number">2</span>;
+                     }
+                     <span class="keyword">var</span> d = <span class="number">1024</span>; <span class="comment">// size of tiling canvas</span>
+                     <span class="keyword">var</span> tmpCanvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+                     tmpCanvas.width = tmpCanvas.height = d;
+                     <span class="keyword">var</span> tmpCtx = tmpCanvas.getContext(<span class="string">'2d'</span>);
+                     <span class="keyword">var</span> vertSquashRatio = detectVerticalSquash(img, iw, ih);
+                     <span class="keyword">var</span> dw = <span class="built_in">Math</span>.ceil(d * width / iw);
+                     <span class="keyword">var</span> dh = <span class="built_in">Math</span>.ceil(d * height / ih / vertSquashRatio);
+                     <span class="keyword">var</span> sy = <span class="number">0</span>;
+                     <span class="keyword">var</span> dy = <span class="number">0</span>;
+                     <span class="keyword">while</span> (sy &lt; ih) {
+                        <span class="keyword">var</span> sx = <span class="number">0</span>;
+                        <span class="keyword">var</span> dx = <span class="number">0</span>;
+                        <span class="keyword">while</span> (sx &lt; iw) {
+                           tmpCtx.clearRect(<span class="number">0</span>, <span class="number">0</span>, d, d);
+                           tmpCtx.drawImage(img, -sx, -sy);
+                           <span class="comment">// 何度もImageDataオブジェクトとCanvasの変換を行ってるけど、Orientation関連で仕方ない。本当はputImageDataであれば良いけどOrientation効かない</span>
+                           <span class="keyword">var</span> imageData = tmpCtx.getImageData(<span class="number">0</span>, <span class="number">0</span>, d, d);
+                           <span class="keyword">var</span> resampled = resample_hermite(imageData, d, d, dw, dh);
+                           ctx.drawImage(resampled, <span class="number">0</span>, <span class="number">0</span>, dw, dh, dx, dy, dw, dh);
+                           sx += d;
+                           dx += dw;
+                        }
+                        sy += d;
+                        dy += dh;
+                     }
+                     ctx.restore();
+                     tmpCanvas = tmpCtx = <span class="literal">null</span>;
+
+                     <span class="keyword">var</span> displaySrc = ctx.canvas.toDataURL(<span class="string">'image/jpeg'</span>, <span class="number">.9</span>);
+                     <span class="keyword">var</span> displayImg = <span class="built_in">document</span>.createElement(<span class="string">'img'</span>);
+                     displayImg.id = <span class="string">'preview'</span>;
+                     displayImg.setAttribute(<span class="string">'src'</span>, displaySrc);
+                     displayImg.setAttribute(<span class="string">'alt'</span>, file.name);
+                     displayImg.setAttribute(<span class="string">'style'</span>, <span class="string">'max-width:90%;max-height:90%'</span>);
+                     <span class="built_in">document</span>.body.appendChild(displayImg);
+
+                     <span class="built_in">document</span>.getElementById(<span class="string">'submit'</span>).removeAttribute(<span class="string">'disabled'</span>);
+
+                  }
+                  img.src = data;
+               }
+               reader.readAsDataURL(file);
+            }
+
+            <span class="comment">// hermite filterかけてジャギーを削除する</span>
+            <span class="function"><span class="keyword">function</span> <span class="title">resample_hermite</span>(<span class="params">img, W, H, W2, H2</span>) </span>{
+               <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+               canvas.width = W2;
+               canvas.height = H2;
+               <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+               <span class="keyword">var</span> img2 = ctx.createImageData(W2, H2);
+               <span class="keyword">var</span> data = img.data;
+               <span class="keyword">var</span> data2 = img2.data;
+               <span class="keyword">var</span> ratio_w = W / W2;
+               <span class="keyword">var</span> ratio_h = H / H2;
+               <span class="keyword">var</span> ratio_w_half = <span class="built_in">Math</span>.ceil(ratio_w / <span class="number">2</span>);
+               <span class="keyword">var</span> ratio_h_half = <span class="built_in">Math</span>.ceil(ratio_h / <span class="number">2</span>);
+               <span class="keyword">for</span> (<span class="keyword">var</span> j = <span class="number">0</span>; j &lt; H2; j++) {
+                  <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; W2; i++) {
+                     <span class="keyword">var</span> x2 = (i + j * W2) * <span class="number">4</span>;
+                     <span class="keyword">var</span> weight = <span class="number">0</span>;
+                     <span class="keyword">var</span> weights = <span class="number">0</span>;
+                     <span class="keyword">var</span> gx_r = <span class="number">0</span>, gx_g = <span class="number">0</span>, gx_b = <span class="number">0</span>, gx_a = <span class="number">0</span>;
+                     <span class="keyword">var</span> center_y = (j + <span class="number">0.5</span>) * ratio_h;
+                     <span class="keyword">for</span> (<span class="keyword">var</span> yy = <span class="built_in">Math</span>.floor(j * ratio_h); yy &lt; (j + <span class="number">1</span>) * ratio_h; yy++) {
+                        <span class="keyword">var</span> dy = <span class="built_in">Math</span>.abs(center_y - (yy + <span class="number">0.5</span>)) / ratio_h_half;
+                        <span class="keyword">var</span> center_x = (i + <span class="number">0.5</span>) * ratio_w;
+                        <span class="keyword">var</span> w0 = dy * dy;
+                        <span class="keyword">for</span> (<span class="keyword">var</span> xx = <span class="built_in">Math</span>.floor(i * ratio_w); xx &lt; (i + <span class="number">1</span>) * ratio_w; xx++) {
+                           <span class="keyword">var</span> dx = <span class="built_in">Math</span>.abs(center_x - (xx + <span class="number">0.5</span>)) / ratio_w_half;
+                           <span class="keyword">var</span> w = <span class="built_in">Math</span>.sqrt(w0 + dx * dx);
+                           <span class="keyword">if</span> (w &gt;= <span class="number">-1</span> &amp;&amp; w &lt;= <span class="number">1</span>) {
+                              weight = <span class="number">2</span> * w * w * w - <span class="number">3</span> * w * w + <span class="number">1</span>;
+                              <span class="keyword">if</span> (weight &gt; <span class="number">0</span>) {
+                                 dx = <span class="number">4</span> * (xx + yy * W);
+                                 gx_r += weight * data[dx];
+                                 gx_g += weight * data[dx + <span class="number">1</span>];
+                                 gx_b += weight * data[dx + <span class="number">2</span>];
+                                 gx_a += weight * data[dx + <span class="number">3</span>];
+                                 weights += weight;
+                              }
+                           }
+                        }
+                     }
+                     data2[x2] = gx_r / weights;
+                     data2[x2 + <span class="number">1</span>] = gx_g / weights;
+                     data2[x2 + <span class="number">2</span>] = gx_b / weights;
+                     data2[x2 + <span class="number">3</span>] = gx_a / weights;
+                  }
+               }
+               ctx.putImageData(img2, <span class="number">0</span>, <span class="number">0</span>);
+               <span class="keyword">return</span> canvas;
+            };
+
+            <span class="comment">// JPEGのEXIFからOrientationのみを取得する</span>
+            <span class="function"><span class="keyword">function</span> <span class="title">getOrientation</span>(<span class="params">imgDataURL</span>) </span>{
+               <span class="keyword">var</span> byteString = atob(imgDataURL.split(<span class="string">','</span>)[<span class="number">1</span>]);
+               <span class="keyword">var</span> orientaion = byteStringToOrientation(byteString);
+               <span class="keyword">return</span> orientaion;
+
+               <span class="function"><span class="keyword">function</span> <span class="title">byteStringToOrientation</span>(<span class="params">img</span>) </span>{
+                  <span class="keyword">var</span> head = <span class="number">0</span>;
+                  <span class="keyword">var</span> orientation;
+                  <span class="keyword">while</span> (<span class="number">1</span>) {
+                     <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">218</span>) { <span class="keyword">break</span>; }
+                     <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">216</span>) {
+                        head += <span class="number">2</span>;
+                     }
+                     <span class="keyword">else</span> {
+                        <span class="keyword">var</span> length = img.charCodeAt(head + <span class="number">2</span>) * <span class="number">256</span> + img.charCodeAt(head + <span class="number">3</span>);
+                        <span class="keyword">var</span> endPoint = head + length + <span class="number">2</span>;
+                        <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">225</span>) {
+                           <span class="keyword">var</span> segment = img.slice(head, endPoint);
+                           <span class="keyword">var</span> bigEndian = segment.charCodeAt(<span class="number">10</span>) == <span class="number">77</span>;
+                           <span class="keyword">if</span> (bigEndian) {
+                              <span class="keyword">var</span> count = segment.charCodeAt(<span class="number">18</span>) * <span class="number">256</span> + segment.charCodeAt(<span class="number">19</span>);
+                           } <span class="keyword">else</span> {
+                              <span class="keyword">var</span> count = segment.charCodeAt(<span class="number">18</span>) + segment.charCodeAt(<span class="number">19</span>) * <span class="number">256</span>;
+                           }
+                           <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; count; i++) {
+                              <span class="keyword">var</span> field = segment.slice(<span class="number">20</span> + <span class="number">12</span> * i, <span class="number">32</span> + <span class="number">12</span> * i);
+                              <span class="keyword">if</span> ((bigEndian &amp;&amp; field.charCodeAt(<span class="number">1</span>) == <span class="number">18</span>) || (!bigEndian &amp;&amp; field.charCodeAt(<span class="number">0</span>) == <span class="number">18</span>)) {
+                                 orientation = bigEndian ? field.charCodeAt(<span class="number">9</span>) : field.charCodeAt(<span class="number">8</span>);
+                              }
+                           }
+                           <span class="keyword">break</span>;
+                        }
+                        head = endPoint;
+                     }
+                     <span class="keyword">if</span> (head &gt; img.length) { <span class="keyword">break</span>; }
+                  }
+                  <span class="keyword">return</span> orientation;
+               }
+            }
+
+            <span class="comment">// iPhoneのサブサンプリングを検出</span>
+            <span class="function"><span class="keyword">function</span> <span class="title">detectSubsampling</span>(<span class="params">img</span>) </span>{
+               <span class="keyword">var</span> iw = img.naturalWidth, ih = img.naturalHeight;
+               <span class="keyword">if</span> (iw * ih &gt; <span class="number">1024</span> * <span class="number">1024</span>) {
+                  <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+                  canvas.width = canvas.height = <span class="number">1</span>;
+                  <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+                  ctx.drawImage(img, -iw + <span class="number">1</span>, <span class="number">0</span>);
+                  <span class="keyword">return</span> ctx.getImageData(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>).data[<span class="number">3</span>] === <span class="number">0</span>;
+               } <span class="keyword">else</span> {
+                  <span class="keyword">return</span> <span class="literal">false</span>;
+               }
+            }
+
+            <span class="comment">// iPhoneの縦画像でひしゃげて表示される問題の回避</span>
+            <span class="function"><span class="keyword">function</span> <span class="title">detectVerticalSquash</span>(<span class="params">img, iw, ih</span>) </span>{
+               <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+               canvas.width = <span class="number">1</span>;
+               canvas.height = ih;
+               <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+               ctx.drawImage(img, <span class="number">0</span>, <span class="number">0</span>);
+               <span class="keyword">var</span> data = ctx.getImageData(<span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, ih).data;
+               <span class="keyword">var</span> sy = <span class="number">0</span>;
+               <span class="keyword">var</span> ey = ih;
+               <span class="keyword">var</span> py = ih;
+               <span class="keyword">while</span> (py &gt; sy) {
+                  <span class="keyword">var</span> alpha = data[(py - <span class="number">1</span>) * <span class="number">4</span> + <span class="number">3</span>];
+                  <span class="keyword">if</span> (alpha === <span class="number">0</span>) {
+                     ey = py;
+                  } <span class="keyword">else</span> {
+                     sy = py;
+                  }
+                  py = (ey + sy) &gt;&gt; <span class="number">1</span>;
+               }
+               <span class="keyword">var</span> ratio = (py / ih);
+               <span class="keyword">return</span> (ratio === <span class="number">0</span>) ? <span class="number">1</span> : ratio;
+            }
+
+            <span class="function"><span class="keyword">function</span> <span class="title">transformCoordinate</span>(<span class="params">canvas, width, height, orientation</span>) </span>{
+               <span class="keyword">if</span> (orientation &gt; <span class="number">4</span>) {
+                  canvas.width = height;
+                  canvas.height = width;
+               } <span class="keyword">else</span> {
+                  canvas.width = width;
+                  canvas.height = height;
+               }
+               <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+               <span class="keyword">switch</span> (orientation) {
+                  <span class="keyword">case</span> <span class="number">2</span>:
+                     <span class="comment">// horizontal flip</span>
+                     ctx.translate(width, <span class="number">0</span>);
+                     ctx.scale(<span class="number">-1</span>, <span class="number">1</span>);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">3</span>:
+                     <span class="comment">// 180 rotate left</span>
+                     ctx.translate(width, height);
+                     ctx.rotate(<span class="built_in">Math</span>.PI);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">4</span>:
+                     <span class="comment">// vertical flip</span>
+                     ctx.translate(<span class="number">0</span>, height);
+                     ctx.scale(<span class="number">1</span>, <span class="number">-1</span>);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">5</span>:
+                     <span class="comment">// vertical flip + 90 rotate right</span>
+                     ctx.rotate(<span class="number">0.5</span> * <span class="built_in">Math</span>.PI);
+                     ctx.scale(<span class="number">1</span>, <span class="number">-1</span>);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">6</span>:
+                     <span class="comment">// 90 rotate right</span>
+                     ctx.rotate(<span class="number">0.5</span> * <span class="built_in">Math</span>.PI);
+                     ctx.translate(<span class="number">0</span>, -height);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">7</span>:
+                     <span class="comment">// horizontal flip + 90 rotate right</span>
+                     ctx.rotate(<span class="number">0.5</span> * <span class="built_in">Math</span>.PI);
+                     ctx.translate(width, -height);
+                     ctx.scale(<span class="number">-1</span>, <span class="number">1</span>);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">8</span>:
+                     <span class="comment">// 90 rotate left</span>
+                     ctx.rotate(<span class="number">-0.5</span> * <span class="built_in">Math</span>.PI);
+                     ctx.translate(-width, <span class="number">0</span>);
+                     <span class="keyword">break</span>;
+                  <span class="keyword">default</span>:
+                     <span class="keyword">break</span>;
+               }
+            }
+
+            <span class="function"><span class="keyword">function</span> <span class="title">dataURLtoBlob</span>(<span class="params">dataurl</span>) </span>{
+               <span class="keyword">var</span> bin = atob(dataurl.split(<span class="string">"base64,"</span>)[<span class="number">1</span>]);
+               <span class="keyword">var</span> len = bin.length;
+               <span class="keyword">var</span> barr = <span class="keyword">new</span> <span class="built_in">Uint8Array</span>(len);
+               <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; len; i++) {
+                  barr[i] = bin.charCodeAt(i);
+               }
+               <span class="keyword">return</span> <span class="keyword">new</span> Blob([barr], {
+                  <span class="attr">type</span>: <span class="string">'image/jpeg'</span>,
+               });
+            };
+
+         })();
+   </span><span class="tag">&lt;/<span class="name">script</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">body</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">html</span>&gt;</span></code></pre><p>サーバ側は最小限のコードのみ掲載します。</p><h2>サーバ側のコード（Google App Engine Golang）</h2><pre><code data-lang="go">
+<span class="keyword">package</span> app
+
+<span class="keyword">import</span> (
+   <span class="string">"appengine"</span>
+   <span class="string">"appengine/blobstore"</span>
+   <span class="string">"appengine/image"</span>
+   <span class="string">"fmt"</span>
+   <span class="string">"net/http"</span>
+)
+
+<span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> {
+   http.HandleFunc(<span class="string">"/upload"</span>, uploadHandler)
+   http.HandleFunc(<span class="string">"/"</span>, defaultHandler)
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">defaultHandler</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+   http.Redirect(w, r, <span class="string">"/"</span>, http.StatusSeeOther)
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">uploadHandler</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+   c := appengine.NewContext(r)
+   <span class="keyword">switch</span> r.Method {
+   <span class="keyword">case</span> <span class="string">"GET"</span>:
+      url, _ := blobstore.UploadURL(c, r.URL.Path, <span class="literal">nil</span>)
+      fmt.Fprint(w, url.String())
+   <span class="keyword">case</span> <span class="string">"POST"</span>:
+      blobs, params, _ := blobstore.ParseUpload(r)
+      file := blobs[<span class="string">"photo"</span>]
+      url, _ := image.ServingURL(c, file[<span class="number">0</span>].BlobKey, <span class="literal">nil</span>)
+      c.Debugf(<span class="string">"PARAMS: %+v"</span>, params)
+      fmt.Fprint(w, url)
+   }
+}</code></pre><p>ぜひ使ってみてもらえたら嬉しいです。質問などがあれば、右下にある（はずの）Commentボタンを押してください。</p><tag-button>JavaScript</tag-button><tag-button>Google App Engine</tag-button><tag-button>Golang</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>

@@ -1,0 +1,326 @@
+<!DOCTYPE html><meta charset="utf-8"><title>【改訂版】画像をクライアント側で縮小してプレビューした後にアップロードする | egashira.jp</title><meta name="description" content=""><meta property="og:title" content="【改訂版】画像をクライアント側で縮小してプレビューした後にアップロードする | egashira.jp"><meta property="og:description" content=""><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>【改訂版】画像をクライアント側で縮小してプレビューした後にアップロードする</h1><p class="updated">2022-02-25</p><p class="abst"><a href="/image-resize-before-upload">以前に公開したコード</a>を現在の環境で動作するように改定しました。</p><p>以前のものと比べて、複数の画像を受け付けられるようにしたり、規定のサイズにクロップ（切り取り）できるようにしたりしました。</p><h2>デモ</h2><div style="border:1px solid #333"><p><input type="file" id="photo" accept="image/*" multiple="multiple"> <label><input type="checkbox" id="crop"> クロップ</label></p><p id="resized"></p><script>(function () {
+			'use strict';
+
+			// 縮小する画像のサイズ
+			var maxWidth = 300;
+			var maxHeight = 300;
+
+			document.getElementById('photo').addEventListener('change', resize);
+
+			function resize(e) {
+				var crop = document.getElementById('crop').checked;
+				var files = e.target.files;
+				for (var i = 0; i < files.length; i++) {
+
+					var file = e.target.files[i];
+					imgResize(file, maxWidth, maxHeight, crop).then(d => {
+						var displayImg = document.createElement('img');
+						displayImg.setAttribute('src', d);
+						document.getElementById('resized').appendChild(displayImg);
+					}).catch(e => {
+						alert(e)
+					})
+				}
+			}
+
+			var imgResize = (file, tWidth, tHeight, crop) => {
+				return new Promise((resolve, reject) => {
+					if (!file.type.match(/^image\/(png|jpeg|gif|jp2)$/)) {
+						reject('入力された画像フォーマットに対応していません。')
+					}
+					var reader = new FileReader();
+					var img = new Image();
+					reader.onload = () => {
+						img.onload = () => {
+							if (crop && (img.naturalWidth < tWidth || img.naturalHeight < tHeight)) {
+								reject('画像が小さすぎます。<br>幅' + tWidth + 'px、高さ' + tHeight + 'px以上の画像を使用してください。');
+							}
+							var orientation = 1;
+							if (img.src.split(',')[0].match('jpeg')) {
+								if (getComputedStyle(document.body).imageOrientation != 'from-image') {
+									orientation = getOrientation(img.src) || 1;
+								}
+							}
+							draw(img, orientation, tWidth, tHeight, crop).then(resolve);
+						}
+						img.src = reader.result;
+					}
+					reader.readAsDataURL(file);
+				});
+			}
+
+			var getOrientation = (imgDataURL) => {
+				var byteString = atob(imgDataURL.split(',')[1]);
+				var orientaion = byteStringToOrientation(byteString);
+				return orientaion;
+
+				function byteStringToOrientation(img) {
+					var head = 0;
+					var orientation;
+					while (1) {
+						if (img.charCodeAt(head) == 255 & img.charCodeAt(head + 1) == 218) { break; }
+						if (img.charCodeAt(head) == 255 & img.charCodeAt(head + 1) == 216) {
+							head += 2;
+						}
+						else {
+							var length = img.charCodeAt(head + 2) * 256 + img.charCodeAt(head + 3);
+							var endPoint = head + length + 2;
+							if (img.charCodeAt(head) == 255 & img.charCodeAt(head + 1) == 225) {
+								var segment = img.slice(head, endPoint);
+								var bigEndian = segment.charCodeAt(10) == 77;
+								if (bigEndian) {
+									var count = segment.charCodeAt(18) * 256 + segment.charCodeAt(19);
+								} else {
+									var count = segment.charCodeAt(18) + segment.charCodeAt(19) * 256;
+								}
+								for (var i = 0; i < count; i++) {
+									var field = segment.slice(20 + 12 * i, 32 + 12 * i);
+									if ((bigEndian && field.charCodeAt(1) == 18) || (!bigEndian && field.charCodeAt(0) == 18)) {
+										orientation = bigEndian ? field.charCodeAt(9) : field.charCodeAt(8);
+									}
+								}
+								break;
+							}
+							head = endPoint;
+						}
+						if (head > img.length) { break; }
+					}
+					return orientation;
+				}
+			}
+
+			var draw = (img, orientation, tWidth, tHeight, crop) => {
+				return new Promise((resolve, reject) => {
+					var canvas = document.createElement('canvas');
+					var ctx = canvas.getContext('2d');
+					var w = img.naturalWidth;
+					var h = img.naturalHeight;
+
+					if (orientation > 4) {
+						[w, h] = [h, w]
+					}
+
+					canvas.width = w;
+					canvas.height = h;
+
+					switch (orientation) {
+						case 2: ctx.transform(-1, 0, 0, 1, w, 0); break;
+						case 3: ctx.transform(-1, 0, 0, -1, w, h); break;
+						case 4: ctx.transform(1, 0, 0, -1, 0, h); break;
+						case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+						case 6: ctx.transform(0, 1, -1, 0, w, 0); break;
+						case 7: ctx.transform(0, -1, -1, 0, w, h); break;
+						case 8: ctx.transform(0, -1, 1, 0, 0, h); break;
+					}
+
+					var drawImg = (w, h) => {
+						var tRatio = tWidth / tHeight;
+						var sRatio = w / h;
+						var wide = sRatio > tRatio; //作成する画像より元画像が横長の場合
+						var sw, sh, sx, sy;
+						if (!crop) {
+							if (wide) {
+								tHeight = tWidth / sRatio;
+							} else {
+								tWidth = tHeight * sRatio;
+							}
+							sw = w;
+							sh = h;
+							sx = 0;
+							sy = 0;
+						} else {
+							sw = wide ? h * tRatio : w;
+							sh = wide ? h : w / tRatio;
+							sx = wide ? (w - sw) / 2 : 0;
+							sy = wide ? 0 : (h - sh) / 2;
+						}
+						canvas.width = tWidth;
+						canvas.height = tHeight;
+						// ctx.drawImage(img, 0, 0);
+
+						ctx.drawImage(img, sx, sy, sw, sh, 0, 0, tWidth, tHeight)
+						resolve(canvas.toDataURL('image/jpeg', .75))
+					}
+					ctx.drawImage(img, 0, 0);
+					var data = canvas.toDataURL('image/jpeg', 1)
+					img = new Image();
+					img.onload = () => {
+						drawImg(w, h);
+					}
+					img.src = data;
+				})
+			}
+		})();</script></div><p>以下のコードは、そのままHTMLのファイルとして保存すれば自分でも動作を確認することができます。</p><h2>クライアント側のコード</h2><pre><code data-lang="html"><span class="meta">&lt;!DOCTYPE <span class="meta-keyword">html</span>&gt;</span>
+<span class="tag">&lt;<span class="name">html</span> <span class="attr">lang</span>=<span class="string">"ja"</span>&gt;</span>
+
+<span class="tag">&lt;<span class="name">head</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">meta</span> <span class="attr">charset</span>=<span class="string">"utf-8"</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">title</span>&gt;</span>画像をアップロードする前にプレビュー、縮小する<span class="tag">&lt;/<span class="name">title</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">meta</span> <span class="attr">name</span>=<span class="string">"viewport"</span> <span class="attr">content</span>=<span class="string">"width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no"</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">head</span>&gt;</span>
+
+<span class="tag">&lt;<span class="name">body</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">h1</span>&gt;</span>Image縮小サンプル<span class="tag">&lt;/<span class="name">h1</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">p</span>&gt;</span>
+      <span class="tag">&lt;<span class="name">input</span> <span class="attr">type</span>=<span class="string">"file"</span> <span class="attr">id</span>=<span class="string">"photo"</span> <span class="attr">accept</span>=<span class="string">"image/*"</span> <span class="attr">multiple</span>=<span class="string">"multiple"</span> /&gt;</span>
+      <span class="tag">&lt;<span class="name">label</span>&gt;</span>
+         <span class="tag">&lt;<span class="name">input</span> <span class="attr">type</span>=<span class="string">"checkbox"</span> <span class="attr">id</span>=<span class="string">"crop"</span> /&gt;</span> クロップ
+      <span class="tag">&lt;/<span class="name">label</span>&gt;</span>
+   <span class="tag">&lt;/<span class="name">p</span>&gt;</span>
+   <span class="tag">&lt;<span class="name">script</span>&gt;</span><span class="javascript">
+      (<span class="function"><span class="keyword">function</span> (<span class="params"></span>) </span>{
+         <span class="string">'use strict'</span>;
+
+         <span class="comment">// 縮小する画像のサイズ</span>
+         <span class="keyword">var</span> maxWidth = <span class="number">300</span>;
+         <span class="keyword">var</span> maxHeight = <span class="number">300</span>;
+
+         <span class="built_in">document</span>.getElementById(<span class="string">'photo'</span>).addEventListener(<span class="string">'change'</span>, resize);
+
+         <span class="function"><span class="keyword">function</span> <span class="title">resize</span>(<span class="params">e</span>) </span>{
+            <span class="keyword">var</span> crop = <span class="built_in">document</span>.getElementById(<span class="string">'crop'</span>).checked;
+            <span class="built_in">console</span>.log(<span class="string">'crop:'</span>, crop);
+            <span class="keyword">var</span> files = e.target.files;
+            <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; files.length; i++) {
+
+               <span class="keyword">var</span> file = e.target.files[i];
+               imgResize(file, maxWidth, maxHeight, crop).then(<span class="function"><span class="params">d</span> =&gt;</span> {
+                  <span class="keyword">var</span> displayImg = <span class="built_in">document</span>.createElement(<span class="string">'img'</span>);
+                  displayImg.setAttribute(<span class="string">'src'</span>, d);
+                  <span class="built_in">document</span>.body.appendChild(displayImg);
+               })
+            }
+         }
+
+         <span class="keyword">var</span> imgResize = <span class="function">(<span class="params">file, tWidth, tHeight, crop</span>) =&gt;</span> {
+            <span class="keyword">return</span> <span class="keyword">new</span> <span class="built_in">Promise</span>(<span class="function">(<span class="params">resolve, reject</span>) =&gt;</span> {
+               <span class="keyword">if</span> (!file.type.match(<span class="regexp">/^image\/(png|jpeg|gif|jp2)$/</span>)) {
+                  reject(<span class="string">'入力された画像フォーマットに対応していません。'</span>)
+               }
+               <span class="keyword">var</span> reader = <span class="keyword">new</span> FileReader();
+               <span class="keyword">var</span> img = <span class="keyword">new</span> Image();
+               reader.onload = <span class="function"><span class="params">()</span> =&gt;</span> {
+                  img.onload = <span class="function"><span class="params">()</span> =&gt;</span> {
+                     <span class="keyword">if</span> (crop &amp;&amp; (img.naturalWidth &lt; tWidth || img.naturalHeight &lt; tHeight)) {
+                        reject(<span class="string">'画像が小さすぎます。&lt;br&gt;幅'</span> + tWidth + <span class="string">'px、高さ'</span> + tHeight + <span class="string">'px以上の画像を使用してください。'</span>);
+                     }
+                     <span class="keyword">var</span> orientation = <span class="number">1</span>;
+                     <span class="keyword">if</span> (img.src.split(<span class="string">','</span>)[<span class="number">0</span>].match(<span class="string">'jpeg'</span>)) {
+                        <span class="keyword">if</span> (getComputedStyle(<span class="built_in">document</span>.body).imageOrientation != <span class="string">'from-image'</span>) {
+                           orientation = getOrientation(img.src) || <span class="number">1</span>;
+                        }
+                     }
+                     draw(img, orientation, tWidth, tHeight, crop).then(resolve);
+                  }
+                  img.src = reader.result;
+               }
+               reader.readAsDataURL(file);
+            });
+         }
+
+         <span class="keyword">var</span> getOrientation = <span class="function">(<span class="params">imgDataURL</span>) =&gt;</span> {
+            <span class="keyword">var</span> byteString = atob(imgDataURL.split(<span class="string">','</span>)[<span class="number">1</span>]);
+            <span class="keyword">var</span> orientaion = byteStringToOrientation(byteString);
+            <span class="keyword">return</span> orientaion;
+
+            <span class="function"><span class="keyword">function</span> <span class="title">byteStringToOrientation</span>(<span class="params">img</span>) </span>{
+               <span class="keyword">var</span> head = <span class="number">0</span>;
+               <span class="keyword">var</span> orientation;
+               <span class="keyword">while</span> (<span class="number">1</span>) {
+                  <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">218</span>) { <span class="keyword">break</span>; }
+                  <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">216</span>) {
+                     head += <span class="number">2</span>;
+                  }
+                  <span class="keyword">else</span> {
+                     <span class="keyword">var</span> length = img.charCodeAt(head + <span class="number">2</span>) * <span class="number">256</span> + img.charCodeAt(head + <span class="number">3</span>);
+                     <span class="keyword">var</span> endPoint = head + length + <span class="number">2</span>;
+                     <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">225</span>) {
+                        <span class="keyword">var</span> segment = img.slice(head, endPoint);
+                        <span class="keyword">var</span> bigEndian = segment.charCodeAt(<span class="number">10</span>) == <span class="number">77</span>;
+                        <span class="keyword">if</span> (bigEndian) {
+                           <span class="keyword">var</span> count = segment.charCodeAt(<span class="number">18</span>) * <span class="number">256</span> + segment.charCodeAt(<span class="number">19</span>);
+                        } <span class="keyword">else</span> {
+                           <span class="keyword">var</span> count = segment.charCodeAt(<span class="number">18</span>) + segment.charCodeAt(<span class="number">19</span>) * <span class="number">256</span>;
+                        }
+                        <span class="keyword">for</span> (<span class="keyword">var</span> i = <span class="number">0</span>; i &lt; count; i++) {
+                           <span class="keyword">var</span> field = segment.slice(<span class="number">20</span> + <span class="number">12</span> * i, <span class="number">32</span> + <span class="number">12</span> * i);
+                           <span class="keyword">if</span> ((bigEndian &amp;&amp; field.charCodeAt(<span class="number">1</span>) == <span class="number">18</span>) || (!bigEndian &amp;&amp; field.charCodeAt(<span class="number">0</span>) == <span class="number">18</span>)) {
+                              orientation = bigEndian ? field.charCodeAt(<span class="number">9</span>) : field.charCodeAt(<span class="number">8</span>);
+                           }
+                        }
+                        <span class="keyword">break</span>;
+                     }
+                     head = endPoint;
+                  }
+                  <span class="keyword">if</span> (head &gt; img.length) { <span class="keyword">break</span>; }
+               }
+               <span class="keyword">return</span> orientation;
+            }
+         }
+
+         <span class="keyword">var</span> draw = <span class="function">(<span class="params">img, orientation, tWidth, tHeight, crop</span>) =&gt;</span> {
+            <span class="keyword">return</span> <span class="keyword">new</span> <span class="built_in">Promise</span>(<span class="function">(<span class="params">resolve, reject</span>) =&gt;</span> {
+               <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+               <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+               <span class="keyword">var</span> w = img.naturalWidth;
+               <span class="keyword">var</span> h = img.naturalHeight;
+
+               <span class="keyword">if</span> (orientation &gt; <span class="number">4</span>) {
+                  [w, h] = [h, w]
+               }
+
+               canvas.width = w;
+               canvas.height = h;
+
+               <span class="keyword">switch</span> (orientation) {
+                  <span class="keyword">case</span> <span class="number">2</span>: ctx.transform(<span class="number">-1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">1</span>, w, <span class="number">0</span>); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">3</span>: ctx.transform(<span class="number">-1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">-1</span>, w, h); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">4</span>: ctx.transform(<span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">-1</span>, <span class="number">0</span>, h); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">5</span>: ctx.transform(<span class="number">0</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">6</span>: ctx.transform(<span class="number">0</span>, <span class="number">1</span>, <span class="number">-1</span>, <span class="number">0</span>, w, <span class="number">0</span>); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">7</span>: ctx.transform(<span class="number">0</span>, <span class="number">-1</span>, <span class="number">-1</span>, <span class="number">0</span>, w, h); <span class="keyword">break</span>;
+                  <span class="keyword">case</span> <span class="number">8</span>: ctx.transform(<span class="number">0</span>, <span class="number">-1</span>, <span class="number">1</span>, <span class="number">0</span>, <span class="number">0</span>, h); <span class="keyword">break</span>;
+               }
+
+               <span class="keyword">var</span> drawImg = <span class="function">(<span class="params">w, h</span>) =&gt;</span> {
+                  <span class="keyword">var</span> tRatio = tWidth / tHeight;
+                  <span class="keyword">var</span> sRatio = w / h;
+                  <span class="keyword">var</span> wide = sRatio &gt; tRatio; <span class="comment">//作成する画像より元画像が横長の場合</span>
+                  <span class="keyword">var</span> sw, sh, sx, sy;
+                  <span class="keyword">if</span> (!crop) {
+                     <span class="keyword">if</span> (wide) {
+                        tHeight = tWidth / sRatio;
+                     } <span class="keyword">else</span> {
+                        tWidth = tHeight * sRatio;
+                     }
+                     sw = w;
+                     sh = h;
+                     sx = <span class="number">0</span>;
+                     sy = <span class="number">0</span>;
+                  } <span class="keyword">else</span> {
+                     sw = wide ? h * tRatio : w;
+                     sh = wide ? h : w / tRatio;
+                     sx = wide ? (w - sw) / <span class="number">2</span> : <span class="number">0</span>;
+                     sy = wide ? <span class="number">0</span> : (h - sh) / <span class="number">2</span>;
+                  }
+                  canvas.width = tWidth;
+                  canvas.height = tHeight;
+                  <span class="comment">// ctx.drawImage(img, 0, 0);</span>
+
+                  ctx.drawImage(img, sx, sy, sw, sh, <span class="number">0</span>, <span class="number">0</span>, tWidth, tHeight)
+                  resolve(canvas.toDataURL(<span class="string">'image/jpeg'</span>, <span class="number">.75</span>))
+               }
+               ctx.drawImage(img, <span class="number">0</span>, <span class="number">0</span>);
+               <span class="keyword">var</span> data = canvas.toDataURL(<span class="string">'image/jpeg'</span>, <span class="number">1</span>)
+               img = <span class="keyword">new</span> Image();
+               img.onload = <span class="function"><span class="params">()</span> =&gt;</span> {
+                  drawImg(w, h);
+               }
+               img.src = data;
+            })
+         }
+      })();
+   </span><span class="tag">&lt;/<span class="name">script</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">body</span>&gt;</span>
+
+<span class="tag">&lt;/<span class="name">html</span>&gt;</span></code></pre><p>ぜひ使ってみてもらえたら嬉しいです。質問などがあれば、右下にあるCommentボタンを押してください。</p><tag-button>JavaScript</tag-button><tag-button>Google App Engine</tag-button><tag-button>Golang</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>
