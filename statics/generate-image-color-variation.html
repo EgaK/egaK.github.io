@@ -1,0 +1,97 @@
+<!DOCTYPE html><meta charset="utf-8"><title>画像のカラーバリエーションをJavascriptで生成する | egashira.jp</title><meta name="description" content="カラーバリエーションの複数の画像が必要になるとき、１枚の画像から生成する方法を掲載します。"><meta property="og:title" content="画像のカラーバリエーションをJavascriptで生成する | egashira.jp"><meta property="og:description" content="カラーバリエーションの複数の画像が必要になるとき、１枚の画像から生成する方法を掲載します。"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>画像のカラーバリエーションをJavascriptで生成する</h1><p class="updated">2013-04-23</p><p class="abst">カラーバリエーションの複数の画像が必要になるとき、１枚の画像から生成する方法を掲載します。</p><p>ホームページの装飾用のパーツなどで、カラーバリエーションが必要な場合は多いと思います。css3のfilterを使えば輝度とか彩度などを変更したりすることができますが、いかんせん対応しているブラウザが少ないため現状では利用がためらわれます。</p><p>今回は、地図上に配置する色違いのマーカ画像を１枚の画像から生成するために作りました。下のデモの画像は左端の赤いのがオリジナルで、それ以外は自動生成したカラーバリエーションです。</p><h4>デモ</h4><p style="border:1px solid #000"><img id="orgImg" src="data:image/png;base64,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"></p><script>!function(){function t(a,e){var t=a.naturalWidth,n=a.naturalHeight,r=document.createElement("canvas");r.width=t,r.height=n,(r=r.getContext("2d")).save(),r.drawImage(a,0,0);var c,o=r.getImageData(0,0,t,n);t*=n;switch(e){case"green":c=function(a){var e=a[g];a[g]=a[g+1],a[g+1]=e};break;case"blue":c=function(a){var e=a[g];a[g]=a[g+2],a[g+2]=e};break;case"yellow":c=function(a){a[g+1]=a[g]};break;case"violet":c=function(a){a[g+2]=a[g]};break;case"cyan":c=function(a){var e=a[g];a[g]=a[g+2],a[g+1]=e,a[g+2]=e};break;case"gray":c=function(a){a[g]=a[g+1]=a[g+2]=Math.floor(.3*a[g]+.59*a[g+1]+.11*a[g+2])};break;case"black":c=function(a){3<Math.abs(a[g]-a[g+1])&&(a[g]=a[g+1]=a[g+2]=Math.floor(.3*a[g]+.59*a[g+1]+.11*a[g+2])-50)}}for(var g=0;g<4*t;g+=4)c(o.data);return r.putImageData(o,0,0),r.canvas.toDataURL("image/png")}var n="green blue cyan yellow violet gray black".split(" "),r=new Image;r.onload=function(){for(var a=0;a<n.length;a++){var e=document.createElement("img");e.src=t(r,n[a]),document.getElementById("orgImg").parentNode.appendChild(e)}},r.src=document.getElementById("orgImg").src}()</script><p>ちなみに上で表示してるマーカのサイズは32,64pxですが、iPhoneなどのRetinaに対応したGoogle Maps用のマーカです。</p><h2>コード</h2><pre><code data-lang="html"><span class="meta">&lt;!DOCTYPE <span class="meta-keyword">html</span>&gt;</span>
+<span class="tag">&lt;<span class="name">html</span> <span class="attr">lang</span>=<span class="string">"ja"</span>&gt;</span>
+<span class="tag">&lt;<span class="name">head</span>&gt;</span>
+<span class="tag">&lt;<span class="name">meta</span> <span class="attr">charset</span>=<span class="string">"utf-8"</span>&gt;</span>
+<span class="tag">&lt;<span class="name">title</span>&gt;</span>画像のカラーバリエーションを生成<span class="tag">&lt;/<span class="name">title</span>&gt;</span>
+<span class="tag">&lt;<span class="name">script</span>&gt;</span><span class="javascript">
+(<span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>{
+  <span class="function"><span class="keyword">function</span> <span class="title">colors</span>(<span class="params"></span>)</span>{
+    <span class="keyword">var</span> colors = [<span class="string">'green'</span>, <span class="string">'blue'</span>, <span class="string">'cyan'</span>, <span class="string">'yellow'</span>, <span class="string">'violet'</span>, <span class="string">'gray'</span>, <span class="string">'black'</span>];
+    <span class="keyword">var</span> img = <span class="keyword">new</span> Image();
+    img.onload = <span class="function"><span class="keyword">function</span>(<span class="params"></span>)</span>{
+      <span class="keyword">for</span>(<span class="keyword">var</span> i=<span class="number">0</span>;i&lt;colors.length;i++) {
+        <span class="keyword">var</span> valiant = <span class="built_in">document</span>.createElement(<span class="string">'img'</span>);
+        valiant.src = changeColor(img, colors[i]);
+        <span class="built_in">document</span>.getElementById(<span class="string">'orgImg'</span>).parentNode.appendChild(valiant);
+      }
+    }
+    img.src = <span class="built_in">document</span>.getElementById(<span class="string">'orgImg'</span>).src;
+  }
+  <span class="function"><span class="keyword">function</span> <span class="title">changeColor</span>(<span class="params">img, color</span>)</span>{
+    <span class="keyword">var</span> iw = img.naturalWidth;
+    <span class="keyword">var</span> ih = img.naturalHeight;
+    <span class="keyword">var</span> canvas = <span class="built_in">document</span>.createElement(<span class="string">'canvas'</span>);
+    canvas.width = iw;
+    canvas.height = ih;
+    <span class="keyword">var</span> ctx = canvas.getContext(<span class="string">'2d'</span>);
+    ctx.save();
+    ctx.drawImage(img, <span class="number">0</span>, <span class="number">0</span>);
+    <span class="keyword">var</span> pixels = ctx.getImageData(<span class="number">0</span>, <span class="number">0</span>, iw, ih);
+    <span class="keyword">var</span> size = iw * ih;
+    <span class="keyword">var</span> func;
+    <span class="keyword">switch</span>(color){
+      <span class="keyword">case</span> <span class="string">'green'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          <span class="keyword">var</span> tmp = p[j];
+          p[j] = p[j+<span class="number">1</span>];
+          p[j+<span class="number">1</span>] = tmp;
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'blue'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          <span class="keyword">var</span> tmp = p[j];
+          p[j] = p[j+<span class="number">2</span>];
+          p[j+<span class="number">2</span>] = tmp;
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'yellow'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          p[j+<span class="number">1</span>] = p[j];
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'violet'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          p[j+<span class="number">2</span>] = p[j];
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'cyan'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          <span class="keyword">var</span> tmp = p[j];
+          p[j] = p[j+<span class="number">2</span>];
+          p[j+<span class="number">1</span>] = tmp;
+          p[j+<span class="number">2</span>] = tmp;
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'gray'</span>:
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          <span class="keyword">var</span> gray = <span class="built_in">Math</span>.floor(p[j]*<span class="number">.3</span> + p[j+<span class="number">1</span>]*<span class="number">.59</span> + p[j+<span class="number">2</span>]*<span class="number">.11</span>);
+          p[j] = p[j+<span class="number">1</span>] = p[j+<span class="number">2</span>] = gray;
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">case</span> <span class="string">'black'</span>:
+      <span class="comment">// 赤と緑の値に差がある（≒グレーでない）の画素だけ処理する</span>
+        func = <span class="function"><span class="keyword">function</span>(<span class="params">p</span>)</span>{
+          <span class="keyword">if</span>(<span class="built_in">Math</span>.abs(p[j] - p[j+<span class="number">1</span>]) &gt;<span class="number">3</span>) {
+            <span class="keyword">var</span> gray = <span class="built_in">Math</span>.floor(p[j]*<span class="number">.3</span> + p[j+<span class="number">1</span>]*<span class="number">.59</span> + p[j+<span class="number">2</span>]*<span class="number">.11</span>);
+            p[j] = p[j+<span class="number">1</span>] = p[j+<span class="number">2</span>] = gray <span class="number">-50</span>;
+           }
+        }
+        <span class="keyword">break</span>;
+      <span class="keyword">default</span>:
+        <span class="keyword">break</span>;
+    }
+    <span class="keyword">for</span>(<span class="keyword">var</span> j=<span class="number">0</span>; j&lt;size*<span class="number">4</span>;j+=<span class="number">4</span>){
+      func(pixels.data);
+    }
+    ctx.putImageData(pixels, <span class="number">0</span>, <span class="number">0</span>);
+    <span class="keyword">return</span> ctx.canvas.toDataURL(<span class="string">'image/png'</span>);
+  }
+  <span class="built_in">document</span>.addEventListener(<span class="string">'DOMContentLoaded'</span>, colors, <span class="literal">false</span>);
+})();
+</span><span class="tag">&lt;/<span class="name">script</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">head</span>&gt;</span>
+<span class="tag">&lt;<span class="name">body</span>&gt;</span>
+<span class="tag">&lt;<span class="name">img</span> <span class="attr">id</span>=<span class="string">"orgImg"</span> <span class="attr">src</span>=<span class="string">"marker.png"</span> /&gt;</span>
+<span class="tag">&lt;/<span class="name">body</span>&gt;</span>
+<span class="tag">&lt;/<span class="name">html</span>&gt;</span>
+</code></pre><p>やっていることは、単にピクセル毎に赤の画素を青にコピーしたり緑にコピーしたりしているだけなので、オリジナル画像は赤い画像である必要があります。あと事前にswitchで関数を定義しておりfor文の中で関数を何回も呼び出してますが、for文の中でswitchを繰り返し実行するのとどっちが効率がいいのか検討の余地はありそうです。</p><tag-button>JavaScript</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>

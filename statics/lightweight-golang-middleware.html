@@ -1,0 +1,33 @@
+<!DOCTYPE html><meta charset="utf-8"><title>Golangで簡易版ミドルウェア | egashira.jp</title><meta name="description" content="サーバプログラムでログイン処理など共通の処理を行うのにミドルウェアを使用することは多いと思いますが、Golangではこんな簡単なコードで実現できます。"><meta property="og:title" content="Golangで簡易版ミドルウェア | egashira.jp"><meta property="og:description" content="サーバプログラムでログイン処理など共通の処理を行うのにミドルウェアを使用することは多いと思いますが、Golangではこんな簡単なコードで実現できます。"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>Golangで簡易版ミドルウェア</h1><p class="updated">2015-08-26</p><p class="abst">サーバプログラムでログイン処理など共通の処理を行うのにミドルウェアを使用することは多いと思いますが、Golangではこんな簡単なコードで実現できます。</p><p>Golangでミドルウェアの必要性を感じたとき、みなさんはどうしていますか？</p><p>おそらく、Githubあたりで公開されているミドルウェアを導入したり、フレームワークに頼ったりするのが一般的ではないでしょうか？</p><p>しかし、そこまで仰々しいものではなくて、単に共通の処理をくくりだしたいというだけなら、こんな簡単なコードで実現できます。</p><h2>簡易版ミドルウェア</h2><pre><code data-lang="go"><span class="keyword">package</span> app
+
+<span class="keyword">import</span> (
+    <span class="string">"appengine"</span>
+    <span class="string">"fmt"</span>
+    <span class="string">"net/http"</span>
+)
+
+<span class="function"><span class="keyword">func</span> <span class="title">Handle</span><span class="params">(handlers ...<span class="keyword">func</span>(w http.ResponseWriter, r *http.Request)</span> <span class="title">error</span>) <span class="title">func</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+    <span class="keyword">return</span> <span class="function"><span class="keyword">func</span><span class="params">(w http.ResponseWriter, r *http.Request)</span></span> {
+        <span class="keyword">for</span> _, handler := <span class="keyword">range</span> handlers {
+            <span class="keyword">if</span> err := handler(w, r); err != <span class="literal">nil</span> {
+                c := appengine.NewContext(r)
+                c.Errorf(<span class="string">"Error %v"</span>, err)
+                <span class="keyword">return</span>
+            }
+        }
+    }
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">init</span><span class="params">()</span></span> {
+    http.HandleFunc(<span class="string">"/"</span>, Handle(loginHandler, mainHandler))
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">mainHandler</span><span class="params">(w http.ResponseWriter, r *http.Request)</span> <span class="title">error</span></span> {
+    fmt.Fprint(w, <span class="string">"ログインした後の処理"</span>)
+    <span class="keyword">return</span> <span class="literal">nil</span>
+}
+
+<span class="function"><span class="keyword">func</span> <span class="title">loginHandler</span><span class="params">(w http.ResponseWriter, r *http.Request)</span> <span class="title">error</span></span> {
+    fmt.Fprint(w, <span class="string">"ログイン処理\n"</span>)
+    <span class="keyword">return</span> <span class="literal">nil</span>
+}</code></pre><p>これはGoogle App Engineで動かすために書いたコードですが、一般的なサーバでも同様に書けると思います。</p><p>Handle関数は、引数に（複数の）関数をとる関数で、それらの関数を順次実行します。途中でエラーを返すと、そこで終了します。</p><p>なので、まずログイン処理（loginHandler）を実行して、次にメインの処理を実行するという一連の流れをわかりやすく表現できます。</p><p>例によって元ネタがありまして、<a href="http://laicos.com/writing-handsome-golang-middleware/">Writing Handsome Golang Middleware</a>で、私もハンサムになれたでしょうか？</p><tag-button>Golang</tag-button><tag-button>Google App Engine</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>

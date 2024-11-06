@@ -1,0 +1,40 @@
+<!DOCTYPE html><meta charset="utf-8"><title>JavascriptでJPEG画像からEXIFのOrientation情報のみを取得する | egashira.jp</title><meta name="description" content="Javascriptを使ってクライアントサイドで画像を縮小する場合に必要となるOrientation情報を、最小のコードと処理でJPEG画像から取得する関数を作りました。"><meta property="og:title" content="JavascriptでJPEG画像からEXIFのOrientation情報のみを取得する | egashira.jp"><meta property="og:description" content="Javascriptを使ってクライアントサイドで画像を縮小する場合に必要となるOrientation情報を、最小のコードと処理でJPEG画像から取得する関数を作りました。"><meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"><link rel="stylesheet" href="/style.css"><link rel="alternate" type="application/atom+xml" href="https://egashira.jp/atom.xml" title="Atom"><div id="wrap"><header><a href="/"><svg width="240" height="50" viewBox="0 0 480 100"><path fill="none" stroke="#fff" stroke-width="9" stroke-linecap="square" stroke-linejoin="bevel" d="M237 61v1h26V49h-26V36h26v1M437 76V36h26v26h-26M367 36h26v26h-26V48h26M423 24v1M117 49h26V36h-26v26h26M183 62h-26V36h26v39h-21M197 36h26v26h-26V48h26M278 24v38M287 36h18v26M319 24v1M319 36v26M334 62V36h19M409 61v1M423 36v38h-15"/><path fill="#fff" d="M5.4 38.2c-1.8 2-2.4 5-2.5 8L0 85c-.2 7 8 15 15 15l39-2.8c2.8 0 5.8-.5 7.7-2.4l36.5-36.6c3-3 2.2-8.5-1.7-12.4L54.2 3.5c-4-4-9.4-4.7-12.4-1.7L5.4 38.2zm46.8 48.5l-20.2 1L12.4 68l1-20L40 21c1.5-1.4 4.2-1 6.2 1 2 1.8 2.3 4.6 1 6L22.4 53c-2 1.8-1.4 5.2 1 7.7 2.5 2.4 6 3 7.8 1L56 37c1.3-1.4 4-1 6 1s2.4 4.7 1 6L38.2 69c-1.8 1.8-1.3 5.3 1 7.7 2.5 2.4 6 3 7.8 1L71.8 53c1.5-1.5 4.3-1 6.2.8 2 2 2.3 4.7.8 6.2L52.2 86.6z"/></svg></a></header><article><h1>JavascriptでJPEG画像からEXIFのOrientation情報のみを取得する</h1><p class="updated">2015-08-10</p><p class="abst">Javascriptを使ってクライアントサイドで画像を縮小する場合に必要となるOrientation情報を、最小のコードと処理でJPEG画像から取得する関数を作りました。</p><p>クライアントサイドで画像を縮小してプレビューし、アップロードすることで通信帯域やサーバの負荷を抑えるJavascriptは比較的簡単に作れます。しかしiPhoneで試してみるとなんか変な状態になってしまいました。<span style="line-height:1.8em">調べてみると</span><a style="line-height:1.8em" href="http://d.hatena.ne.jp/shinichitomita/20120927/1348726674">iOS6でメガピクセル画像をCanvasに描画するとおかしくなってしまう件と、その対処</a><span style="line-height:1.8em">というページを見つけて、iPhone側に問題がありそうで、解決策も提示されているようです。</span></p><p>そこで必要となるのが、画像の正しい方向（回転とか鏡像とか）なのですが、JPEG内のEXIF情報に書き込まれているっぽいです。EXIF情報を取得するためのJavascriptコードもいろいろあるのですが、EXIF全体を読むため汎用的に作られていて、コードが大きくて処理も冗長な感じです。必要なのはOrientationのみなので、それに特化した関数を作ってみました。</p><h2>EXIFのOrientationのみを取得するJavascript関数</h2><pre><code data-lang="javascript"><span class="function"><span class="keyword">function</span> <span class="title">getOrientation</span>(<span class="params">imgDataURL</span>)</span>{
+   <span class="keyword">var</span> byteString = atob(imgDataURL.split(<span class="string">','</span>)[<span class="number">1</span>]);
+   <span class="keyword">var</span> orientaion = byteStringToOrientation(byteString);
+   <span class="keyword">return</span> orientaion;
+
+   <span class="function"><span class="keyword">function</span> <span class="title">byteStringToOrientation</span>(<span class="params">img</span>)</span>{
+      <span class="keyword">var</span> head = <span class="number">0</span>;
+      <span class="keyword">var</span> orientation;
+      <span class="keyword">while</span> (<span class="number">1</span>){
+         <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">218</span>) {<span class="keyword">break</span>;}
+         <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">216</span>) {
+            head += <span class="number">2</span>;
+         }
+         <span class="keyword">else</span> {
+            <span class="keyword">var</span> length = img.charCodeAt(head + <span class="number">2</span>) * <span class="number">256</span> + img.charCodeAt(head + <span class="number">3</span>);
+            <span class="keyword">var</span> endPoint = head + length + <span class="number">2</span>;
+            <span class="keyword">if</span> (img.charCodeAt(head) == <span class="number">255</span> &amp; img.charCodeAt(head + <span class="number">1</span>) == <span class="number">225</span>) {
+               <span class="keyword">var</span> segment = img.slice(head, endPoint);
+               <span class="keyword">var</span> bigEndian = segment.charCodeAt(<span class="number">10</span>) == <span class="number">77</span>;
+               <span class="keyword">var</span> count;
+               <span class="keyword">if</span> (bigEndian) {
+                  count = segment.charCodeAt(<span class="number">18</span>) * <span class="number">256</span> + segment.charCodeAt(<span class="number">19</span>);
+               } <span class="keyword">else</span> {
+                  count = segment.charCodeAt(<span class="number">18</span>) + segment.charCodeAt(<span class="number">19</span>) * <span class="number">256</span>;
+               }
+               <span class="keyword">for</span> (i=<span class="number">0</span>; i &lt; count; i++){
+                  <span class="keyword">var</span> field = segment.slice(<span class="number">20</span> + <span class="number">12</span> * i, <span class="number">32</span> + <span class="number">12</span> * i);
+                  <span class="keyword">if</span> ((bigEndian &amp;&amp; field.charCodeAt(<span class="number">1</span>) == <span class="number">18</span>) || (!bigEndian &amp;&amp; field.charCodeAt(<span class="number">0</span>) == <span class="number">18</span>)) {
+                     orientation = bigEndian ? field.charCodeAt(<span class="number">9</span>) : field.charCodeAt(<span class="number">8</span>);
+                  }
+               }
+               <span class="keyword">break</span>;
+            }
+            head = endPoint;
+         }
+         <span class="keyword">if</span> (head &gt; img.length){<span class="keyword">break</span>;}
+      }
+      <span class="keyword">return</span> orientation;
+   }
+}</code></pre><p>この関数の入力値は、JPEGファイルをbase64エンコードしたDataURL形式にしています。これはHTML5のFileReaderでローカルファイルを読み出すときに一番使いやすい形式です。</p><tag-button>JavaScript</tag-button></article><nav></nav></div><footer><p>Copyright © 2007-2020 <a href="//egashira.jp/">egashira.jp</a> All rights reserved.</p></footer><script src="/base.js" async></script>
